@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/code/protein-property-predictor/mlruns/678192842284973738/55853bb970b34c6183c1a2d550de6a2b/artifacts
+end_time: 1760453664416
+entry_point_name: ''
+experiment_id: '678192842284973738'
+lifecycle_stage: active
+run_id: 55853bb970b34c6183c1a2d550de6a2b
+run_name: Training_Run
+run_uuid: 55853bb970b34c6183c1a2d550de6a2b
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1760453664400
+status: 3
+tags: []
+user_id: ubuntu

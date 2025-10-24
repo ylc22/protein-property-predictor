@@ -1,0 +1,5 @@
+{
+  "train_accuracy": 1.0,
+  "train_auc": 1.0,
+  "model_path": "./data/models/latest/model.joblib"
+}

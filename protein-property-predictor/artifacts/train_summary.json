@@ -1,0 +1,9 @@
+{
+  "status": "ok",
+  "samples": 6,
+  "features_dim": 3,
+  "model_path": "/mnt/code/protein-property-predictor/models/latest/model.joblib",
+  "mlflow_tracking": "/mnt/code/protein-property-predictor/mlruns",
+  "mlflow_last_run_id": null,
+  "timestamp": 1760018205
+}

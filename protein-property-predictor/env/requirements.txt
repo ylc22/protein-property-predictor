@@ -1,0 +1,8 @@
+numpy
+pandas
+scikit-learn
+joblib
+streamlit        
+requests         # only if you’ll use endpoint_tester.py
+mlflow
+matplotlib   # optional (for a simple diagnostic plot)

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import joblib
+import numpy as np
 
 from features import clean_sequence, featurize_sequence
 
@@ -32,13 +33,28 @@ def load_bundle() -> Dict[str, Any]:
     bundle = joblib.load(resolve_model_path())
     if isinstance(bundle, dict) and "model" in bundle:
         return bundle
-    # Backward compatibility with the original demo's bare estimator.
+    # Backward compatibility with the original three-feature Domino demo model.
     return {
         "model": bundle,
         "label_map": {0: "soluble", 1: "membrane-bound"},
         "threshold": 0.5,
-        "feature_names": ["legacy_features"],
+        "feature_names": ["hydrophobic_fraction", "nterm_hydrophobic_fraction", "length"],
+        "legacy": True,
     }
+
+
+def _vector_for_bundle(seq: str, features: Dict[str, float], bundle: Dict[str, Any]) -> np.ndarray:
+    if bundle.get("legacy"):
+        return np.array(
+            [
+                features["hydrophobic_fraction"],
+                features["nterm_hydrophobic_fraction"],
+                float(len(seq)),
+            ],
+            dtype=float,
+        )
+    vector, _ = featurize_sequence(seq)
+    return vector
 
 
 def predict(sequence: str) -> Dict[str, Any]:
@@ -46,15 +62,14 @@ def predict(sequence: str) -> Dict[str, Any]:
     if not seq:
         raise ValueError("Provide a non-empty amino-acid sequence or FASTA record.")
 
-    vector, features = featurize_sequence(seq)
+    _, features = featurize_sequence(seq)
     bundle = load_bundle()
     model = bundle["model"]
+    vector = _vector_for_bundle(seq, features, bundle)
     threshold = float(bundle.get("threshold", 0.5))
     probability = float(model.predict_proba(vector.reshape(1, -1))[0, 1])
     encoded = int(probability >= threshold)
     label_map = bundle.get("label_map", {0: "soluble", 1: "membrane-bound"})
-
-    # joblib can preserve integer or string dict keys depending on serialization path.
     label = label_map.get(encoded, label_map.get(str(encoded), str(encoded)))
 
     return {
@@ -64,7 +79,7 @@ def predict(sequence: str) -> Dict[str, Any]:
         "threshold": threshold,
         "sequence_length": len(seq),
         "features": {k: round(float(v), 4) for k, v in features.items()},
-        "model": "interpretable_sequence_baseline",
+        "model": "legacy_three_feature_baseline" if bundle.get("legacy") else "interpretable_sequence_baseline",
     }
 
 

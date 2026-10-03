@@ -1,85 +1,78 @@
-# model.py — inference only (used by app.py)
-#
-# Loads model.joblib (trained via train.py) and provides predict() for Streamlit app.
+"""Inference API for the Protein Property Predictor."""
+
+from __future__ import annotations
 
 import os
+from pathlib import Path
+from typing import Any, Dict
+
 import joblib
-import numpy as np
 
-# ---------- Feature functions ----------
-HYDRO = set("AILMFWVY")
+from features import clean_sequence, featurize_sequence
 
-def _clean(s):
-    return (s or "").upper().replace(" ", "").replace("\n", "").replace("\r", "")
-
-def _hyd_frac(s):
-    s = _clean(s)
-    return sum(1 for c in s if c in HYDRO) / max(len(s), 1)
-
-def _nterm_hyd_frac(s, w=20):
-    s = _clean(s)
-    return _hyd_frac(s[:w])
-
-def featurize(seq):
-    seq = _clean(seq)
-    hyd = _hyd_frac(seq)
-    nterm_hyd = _nterm_hyd_frac(seq)
-    length = float(len(seq))
-    X = np.array([[hyd, nterm_hyd, length]])
-    return X, {"length": int(length), "hydrophobic_fraction": round(hyd, 3), "nterm_hydrophobic_fraction": round(nterm_hyd, 3)}
+HERE = Path(__file__).resolve().parent
 
 
-# ---------- Resolve model path ----------
-DATASET_DIR = os.getenv("DATASET_DIR", "").strip()
-HERE = os.path.dirname(__file__)
-
-
-MODEL_PATH = "/mnt/artifacts/models/latest/model.joblib"
-
-
-# ---------- Load trained model ----------
-if not os.path.exists(MODEL_PATH):
+def resolve_model_path() -> Path:
+    candidates = [
+        os.getenv("MODEL_PATH"),
+        "/mnt/artifacts/models/latest/model.joblib",
+        str(HERE / "data" / "models" / "latest" / "model.joblib"),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return Path(candidate)
     raise FileNotFoundError(
-        f"❌ Model file not found at {MODEL_PATH}. Run train.py first."
+        "Model bundle not found. Train with `python protein-property-predictor/train.py --data ...` "
+        "or set MODEL_PATH."
     )
 
-MODEL = joblib.load(MODEL_PATH)
 
-# ---------- Prediction ----------
-def predict(seq: str, mode: str = "auto") -> dict:
-    """
-    Predicts protein property from amino acid sequence.
+def load_bundle() -> Dict[str, Any]:
+    bundle = joblib.load(resolve_model_path())
+    if isinstance(bundle, dict) and "model" in bundle:
+        return bundle
+    # Backward compatibility with the original demo's bare estimator.
+    return {
+        "model": bundle,
+        "label_map": {0: "soluble", 1: "membrane-bound"},
+        "threshold": 0.5,
+        "feature_names": ["legacy_features"],
+    }
 
-    Returns:
-        dict with prediction label, confidence, and features.
-    """
-    seq = _clean(seq)
+
+def predict(sequence: str) -> Dict[str, Any]:
+    seq = clean_sequence(sequence)
     if not seq:
-        return {"error": "Empty sequence."}
+        raise ValueError("Provide a non-empty amino-acid sequence or FASTA record.")
 
-    # Compute features
-    X, feats = featurize(seq)
+    vector, features = featurize_sequence(seq)
+    bundle = load_bundle()
+    model = bundle["model"]
+    threshold = float(bundle.get("threshold", 0.5))
+    probability = float(model.predict_proba(vector.reshape(1, -1))[0, 1])
+    encoded = int(probability >= threshold)
+    label_map = bundle.get("label_map", {0: "soluble", 1: "membrane-bound"})
 
-    if mode == "rule":
-        hyd = feats["hydrophobic_fraction"]
-        pred_label = "membrane-bound" if hyd > 0.45 else "soluble"
-        return {
-            "prediction": pred_label,
-            "confidence": round(hyd, 3),
-            "features": feats,
-            "mode": "rule-based"
-        }
-
-    # ML-based prediction
-    try:
-        prob = float(MODEL.predict_proba(X)[0, 1])
-        pred_label = "membrane-bound" if prob >= 0.5 else "soluble"
-    except Exception as e:
-        return {"error": f"Model prediction failed: {str(e)}"}
+    # joblib can preserve integer or string dict keys depending on serialization path.
+    label = label_map.get(encoded, label_map.get(str(encoded), str(encoded)))
 
     return {
-        "prediction": pred_label,
-        "confidence": round(prob, 3),
-        "features": feats,
-        "mode": "ml" if mode == "ml" else "auto"
+        "prediction": label,
+        "membrane_probability": round(probability, 4),
+        "soluble_probability": round(1.0 - probability, 4),
+        "threshold": threshold,
+        "sequence_length": len(seq),
+        "features": {k: round(float(v), 4) for k, v in features.items()},
+        "model": "interpretable_sequence_baseline",
     }
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("sequence")
+    args = parser.parse_args()
+    print(json.dumps(predict(args.sequence), indent=2))

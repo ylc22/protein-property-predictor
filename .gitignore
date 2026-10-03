@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# ML / experiment artifacts
+mlruns/
+*.joblib
+*.pkl
+
+# Local outputs
+artifacts/
+outputs/
+.DS_Store
+
+# Keep the small checked-in demo model if already tracked; new binary artifacts should live in releases or MLflow.

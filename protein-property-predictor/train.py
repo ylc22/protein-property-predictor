@@ -77,7 +77,6 @@ def load_dataset(path: Path) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     if df["label"].nunique() != 2:
         raise ValueError("Expected a binary label column with exactly two classes.")
 
-    # Accept common textual labels while preserving 0/1 inputs.
     if not pd.api.types.is_numeric_dtype(df["label"]):
         normalized = df["label"].astype(str).str.lower().str.strip()
         mapping = {
@@ -122,7 +121,7 @@ def safe_auc(y_true: np.ndarray, scores: np.ndarray) -> float | None:
 def evaluate(model: Pipeline, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
     prob = model.predict_proba(X)[:, 1]
     pred = (prob >= 0.5).astype(int)
-    metrics: Dict[str, Any] = {
+    return {
         "accuracy": float(accuracy_score(y, pred)),
         "balanced_accuracy": float(balanced_accuracy_score(y, pred)),
         "f1": float(f1_score(y, pred, zero_division=0)),
@@ -131,10 +130,15 @@ def evaluate(model: Pipeline, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
         "confusion_matrix": confusion_matrix(y, pred).tolist(),
         "classification_report": classification_report(y, pred, output_dict=True, zero_division=0),
     }
-    return metrics
 
 
 def run_training(data_path: Path, output_dir: Path) -> Dict[str, Any]:
+    # Tests and programmatic callers may pass a path that does not exist yet.
+    # Create it here as well as in resolve_output_dir() so run_training() is
+    # independently safe and deterministic.
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     df, X, y = load_dataset(data_path)
     class_counts = np.bincount(y, minlength=2)
     min_class = int(class_counts.min())

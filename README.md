@@ -112,7 +112,9 @@ This is **not presented as state-of-the-art biology**. It is an interpretable sy
 git clone https://github.com/ylc22/protein-property-predictor.git
 cd protein-property-predictor
 python -m venv .venv
+# macOS / Linux
 source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
 pip install -r protein-property-predictor/env/requirements.txt
 ```
 
@@ -176,7 +178,7 @@ Interactive API docs are available at `/docs` while the service is running.
 ### 6. Run tests
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
 ---
